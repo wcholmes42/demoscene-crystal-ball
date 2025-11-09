@@ -270,16 +270,15 @@ def main():
         # Calculate cross-fade amount (0.0 = texture1, 1.0 = texture2)
         crossfade_progress = min(1.0, (current_time - crossfade_start) / crossfade_duration)
         
-        # When cross-fade complete, swap textures
+        # When cross-fade complete, swap textures (ONCE!)
         if crossfade_progress >= 1.0 and current_photo_idx != next_photo_idx:
+            print(f"[CROSSFADE COMPLETE] Swapping to photo #{next_photo_idx + 1}")
             glDeleteTextures([texture1])
             texture1 = texture2
             current_photo_idx = next_photo_idx
-            # Pre-load next photo
-            next_photo_idx = (current_photo_idx + 1) % len(photo_paths)
-            next_img = Image.open(photo_paths[next_photo_idx]).convert('RGB')
-            texture2 = load_texture_from_image(next_img, screen_width, screen_height)
-            crossfade_progress = 0.0
+            # DON'T pre-load here - wait for 30 second timer
+            # Reset crossfade to prevent re-triggering
+            crossfade_start = current_time - crossfade_duration  # Keep at 1.0
         
         # IMPROVED DEMOSCENE MOTION - More complex Lissajous with rotation
         # Multiple sine waves with different frequencies and phases
