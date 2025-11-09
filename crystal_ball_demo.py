@@ -9,7 +9,7 @@ import time
 import os
 import glob
 
-# GLSL Fragment Shader - GPU-accelerated lens distortion
+# GLSL Fragment Shader - GPU-accelerated lens distortion with DISSOLVE effect
 FRAGMENT_SHADER = """
 #version 330 core
 in vec2 fragCoord;
@@ -23,6 +23,11 @@ uniform float sphereRadius;
 uniform float strength;
 uniform vec2 resolution;
 
+// Random noise function for dissolve pattern
+float random(vec2 st) {
+    return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
+}
+
 void main() {
     vec2 uv = fragCoord;
     vec2 center = sphereCenter / resolution;
@@ -31,10 +36,18 @@ void main() {
     vec2 delta = uv - center;
     float dist = length(delta);
     
-    // Sample both textures with cross-fade
+    // Generate dissolve pattern (random noise based on UV)
+    float dissolveNoise = random(uv * 100.0);
+    
+    // Smooth dissolve threshold with soft edges
+    float dissolveEdge = 0.1;  // Soft edge width
+    float dissolveThreshold = crossfade + (dissolveNoise - 0.5) * dissolveEdge;
+    float dissolveMix = smoothstep(dissolveThreshold - dissolveEdge, dissolveThreshold + dissolveEdge, dissolveNoise);
+    
+    // Sample both textures with dissolve effect
     vec3 color1 = texture(tex1, uv).rgb;
     vec3 color2 = texture(tex2, uv).rgb;
-    vec3 baseColor = mix(color1, color2, crossfade);
+    vec3 baseColor = mix(color1, color2, dissolveMix);
     
     if (dist < radius) {
         float normDist = dist / radius;
@@ -44,7 +57,7 @@ void main() {
         vec2 distortedDelta = delta * distortion;
         vec2 sourceUV = center + distortedDelta;
         
-        // Chromatic aberration on both textures
+        // Chromatic aberration on both textures with dissolve
         float aberration = 0.01 * normDist;
         vec3 color1_distorted, color2_distorted;
         
@@ -56,7 +69,12 @@ void main() {
         color2_distorted.g = texture(tex2, sourceUV).g;
         color2_distorted.b = texture(tex2, sourceUV + aberration * normalize(delta)).b;
         
-        vec3 color = mix(color1_distorted, color2_distorted, crossfade);
+        // Apply dissolve pattern to distorted colors
+        float dissolveNoise_sphere = random(sourceUV * 100.0);
+        float dissolveThreshold_sphere = crossfade + (dissolveNoise_sphere - 0.5) * 0.1;
+        float dissolveMix_sphere = smoothstep(dissolveThreshold_sphere - 0.1, dissolveThreshold_sphere + 0.1, dissolveNoise_sphere);
+        
+        vec3 color = mix(color1_distorted, color2_distorted, dissolveMix_sphere);
         
         // Specular highlight
         vec2 highlightPos = center + vec2(-0.3, -0.3) * radius;
@@ -169,11 +187,14 @@ def main():
         compileShader(FRAGMENT_SHADER, GL_FRAGMENT_SHADER)
     )
     
-    # Load ALL photos from P: drive
+    # Load ALL photos from P: drive and SORT them
     print("Loading photos from P: drive...")
     photo_paths = glob.glob('P:\\*.jpg') + glob.glob('P:\\*.JPG') + glob.glob('P:\\*.png')
     photo_paths = [p for p in photo_paths if os.path.isfile(p)]
-    print(f"Found {len(photo_paths)} photos!")
+    photo_paths.sort()  # Sort alphabetically by filename
+    print(f"Found {len(photo_paths)} photos (sorted by filename)")
+    print(f"First: {os.path.basename(photo_paths[0])}")
+    print(f"Last: {os.path.basename(photo_paths[-1])}")
     
     if not photo_paths:
         print("No photos found!")
@@ -209,7 +230,7 @@ def main():
     start_time = time.time()
     photo_change_time = start_time
     crossfade_start = start_time
-    crossfade_duration = 3.0  # 3 SECOND cross-fade
+    crossfade_duration = 8.0  # 8 SECOND slow dissolve
     photo_display_time = 30.0  # 30 SECONDS per photo
     running = True
     paused = False
@@ -220,7 +241,7 @@ def main():
     print("  ESC = Exit")
     print("  SPACE = Pause motion")
     print("  LEFT/RIGHT = Change photo manually")
-    print("  Photos display for 30 seconds with 3-second smooth cross-fade")
+    print("  Photos display for 30 seconds with 8-second smooth dissolve")
     
     while running:
         for event in pygame.event.get():
