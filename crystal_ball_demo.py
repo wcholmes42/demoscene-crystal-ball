@@ -36,13 +36,12 @@ void main() {
     vec2 delta = uv - center;
     float dist = length(delta);
     
-    // Generate dissolve pattern (random noise based on UV)
-    float dissolveNoise = random(uv * 100.0);
+    // Generate dissolve pattern (organic random noise)
+    float dissolveNoise = random(uv * 500.0);  // Higher frequency for finer pattern
     
-    // Smooth dissolve threshold with soft edges
-    float dissolveEdge = 0.1;  // Soft edge width
-    float dissolveThreshold = crossfade + (dissolveNoise - 0.5) * dissolveEdge;
-    float dissolveMix = smoothstep(dissolveThreshold - dissolveEdge, dissolveThreshold + dissolveEdge, dissolveNoise);
+    // Smooth dissolve with wider soft edges for organic look
+    float dissolveEdge = 0.15;  // Wider soft edge for smoother transition
+    float dissolveMix = smoothstep(crossfade - dissolveEdge, crossfade + dissolveEdge, dissolveNoise);
     
     // Sample both textures with dissolve effect
     vec3 color1 = texture(tex1, uv).rgb;
