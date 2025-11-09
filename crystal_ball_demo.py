@@ -284,30 +284,33 @@ def main():
             print(f"[{int(current_time - start_time)}s] PHOTO CHANGE #{next_photo_idx + 1}/{len(photo_paths)}")
             print(f"Cross-fading to: {os.path.basename(photo_paths[next_photo_idx])}")
             print("="*60 + "\n")
+            
+            # Load NEXT photo into texture2 for dissolve
             next_img = Image.open(photo_paths[next_photo_idx]).convert('RGB')
             glDeleteTextures([texture2])
             texture2 = load_texture_from_image(next_img, screen_width, screen_height)
+            
+            # Start dissolve and reset timer
             crossfade_start = current_time
             photo_change_time = current_time
         
         # Calculate cross-fade amount (0.0 = texture1, 1.0 = texture2)
         crossfade_progress = min(1.0, (current_time - crossfade_start) / crossfade_duration)
         
-        # When cross-fade complete, swap textures and PRE-LOAD next
+        # When cross-fade complete (ONCE per cycle), swap textures
         if crossfade_progress >= 1.0 and current_photo_idx != next_photo_idx:
-            print(f"[CROSSFADE COMPLETE] Swapping to photo #{next_photo_idx + 1}")
+            print(f"[CROSSFADE COMPLETE] Photo #{next_photo_idx + 1} now showing")
             glDeleteTextures([texture1])
             texture1 = texture2
+            
+            # Create a COPY of texture2 for texture1 so both show same photo
+            # This prevents black screen while waiting for next 30-second timer
+            duplicate_img = Image.open(photo_paths[next_photo_idx]).convert('RGB')
+            texture2 = load_texture_from_image(duplicate_img, screen_width, screen_height)
+            
             current_photo_idx = next_photo_idx
-            
-            # PRE-LOAD next photo into texture2 so OLD and NEW are always ready
-            next_photo_idx = (current_photo_idx + 1) % len(photo_paths)
-            print(f"[PRE-LOAD] Loading photo #{next_photo_idx + 1} for next transition")
-            next_img = Image.open(photo_paths[next_photo_idx]).convert('RGB')
-            texture2 = load_texture_from_image(next_img, screen_width, screen_height)
-            
-            # Reset crossfade to prevent re-triggering
-            crossfade_start = current_time - crossfade_duration  # Keep at 1.0
+            # Keep crossfade at 1.0 so we keep showing the current photo
+            crossfade_start = current_time - crossfade_duration
         
         # IMPROVED DEMOSCENE MOTION - More complex Lissajous with rotation
         # Multiple sine waves with different frequencies and phases
