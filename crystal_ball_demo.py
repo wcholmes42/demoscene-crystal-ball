@@ -187,7 +187,7 @@ def main():
     print("  ESC = Exit")
     print("  SPACE = Pause motion")
     print("  LEFT/RIGHT = Change photo manually")
-    print("  Photo auto-changes every 15 seconds")
+    print("  Photo auto-changes every 3 seconds")
     
     while running:
         for event in pygame.event.get():
@@ -214,8 +214,8 @@ def main():
                     current_texture = load_texture_from_image(current_img, screen_width, screen_height)
                     photo_change_time = time.time()
         
-        # Auto-change photo every 15 seconds
-        if time.time() - photo_change_time > 15.0:
+        # Auto-change photo every 3 seconds (FAST!)
+        if time.time() - photo_change_time > 3.0:
             current_photo_idx = (current_photo_idx + 1) % len(photo_paths)
             print(f"Auto-loading: {os.path.basename(photo_paths[current_photo_idx])}")
             current_img = Image.open(photo_paths[current_photo_idx]).convert('RGB')

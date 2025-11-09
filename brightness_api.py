@@ -47,14 +47,15 @@ class BrightnessController:
 
 def brightness_cycle_test():
     """
-    Brightness test: CONTINUOUS smooth fade 100% → 0% → 100% repeating
+    Brightness test: FAST continuous fade 100% → 0% → 100% repeating
     """
     controller = BrightnessController()
     
     print("\n" + "="*60)
-    print("BRIGHTNESS CYCLE TEST - CONTINUOUS SMOOTH FADING")
+    print("BRIGHTNESS CYCLE TEST - FAST CONTINUOUS FADING")
     print("="*60)
-    print("Continuously fading 100% → 0% → 100% with no pauses")
+    print("Rapidly fading 100% → BLACK (0%) → 100% with no pauses")
+    print("5 seconds per direction, 10 second full cycle")
     print("Press CTRL+C to stop")
     print("="*60 + "\n")
     
@@ -62,21 +63,24 @@ def brightness_cycle_test():
         cycle_count = 0
         while True:
             cycle_count += 1
-            print(f"\n[CYCLE {cycle_count}] Dimming 100% → 0%...")
+            print(f"\n[CYCLE {cycle_count}] Dimming to BLACK...")
             
-            # Dim from 100 to 0
+            # Fast fade to BLACK
             for current in range(100, -1, -1):
                 controller.set_brightness(current)
                 print(f"[BRIGHTNESS] {current}%", end="\r")
-                time.sleep(0.1)
+                time.sleep(0.05)  # 50ms = FAST!
             
-            print(f"\n[CYCLE {cycle_count}] Brightening 0% → 100%...")
+            # Ensure absolute BLACK
+            controller.set_brightness(0)
             
-            # Brighten from 0 to 100
+            print(f"\n[CYCLE {cycle_count}] Brightening from BLACK...")
+            
+            # Fast fade from BLACK
             for current in range(0, 101):
                 controller.set_brightness(current)
                 print(f"[BRIGHTNESS] {current}%", end="\r")
-                time.sleep(0.1)
+                time.sleep(0.05)  # 50ms = FAST!
             
             print()  # New line after cycle
         
@@ -93,25 +97,28 @@ def run_demo_with_brightness():
     stop_brightness = threading.Event()
     
     def brightness_worker():
-        """Background thread for CONTINUOUS smooth brightness cycling"""
+        """Background thread for FAST CONTINUOUS brightness cycling"""
         try:
             while not stop_brightness.is_set():
-                # PHASE 1: Smooth dim from 100% to 0%
+                # PHASE 1: Fast fade to BLACK (0%)
                 for current in range(100, -1, -1):
                     if stop_brightness.is_set():
                         break
                     controller.set_brightness(current)
-                    time.sleep(0.1)  # 100ms per step = 10 second fade
+                    time.sleep(0.05)  # 50ms per step = 5 second fade (FAST!)
+                
+                # Ensure we hit absolute BLACK
+                controller.set_brightness(0)
                 
                 if stop_brightness.is_set():
                     break
                 
-                # PHASE 2: Smooth brighten from 0% to 100%
+                # PHASE 2: Fast fade from black to bright
                 for current in range(0, 101):
                     if stop_brightness.is_set():
                         break
                     controller.set_brightness(current)
-                    time.sleep(0.1)  # 100ms per step = 10 second fade
+                    time.sleep(0.05)  # 50ms per step = 5 second fade (FAST!)
                 
                 # Loop immediately, no pause
                 
@@ -122,9 +129,11 @@ def run_demo_with_brightness():
             controller.restore()
     
     print("\n" + "="*60)
-    print("DEMOSCENE CRYSTAL BALL + SMOOTH BRIGHTNESS CONTROL")
+    print("DEMOSCENE CRYSTAL BALL + FAST BRIGHTNESS CONTROL")
     print("="*60)
-    print("Starting demo with smooth brightness cycling...")
+    print("Starting demo with FAST brightness cycling...")
+    print("Fades to absolute BLACK and back every 10 seconds")
+    print("Photos change every 3 seconds")
     print("Press ESC in demo window to exit")
     print("="*60 + "\n")
     
