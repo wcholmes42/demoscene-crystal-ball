@@ -15,7 +15,9 @@ FRAGMENT_SHADER = """
 in vec2 fragCoord;
 out vec4 fragColor;
 
-uniform sampler2D tex;
+uniform sampler2D tex1;
+uniform sampler2D tex2;
+uniform float crossfade;
 uniform vec2 sphereCenter;
 uniform float sphereRadius;
 uniform float strength;
@@ -29,6 +31,11 @@ void main() {
     vec2 delta = uv - center;
     float dist = length(delta);
     
+    // Sample both textures with cross-fade
+    vec3 color1 = texture(tex1, uv).rgb;
+    vec3 color2 = texture(tex2, uv).rgb;
+    vec3 baseColor = mix(color1, color2, crossfade);
+    
     if (dist < radius) {
         float normDist = dist / radius;
         float z = sqrt(1.0 - normDist * normDist);
@@ -37,12 +44,19 @@ void main() {
         vec2 distortedDelta = delta * distortion;
         vec2 sourceUV = center + distortedDelta;
         
-        // Chromatic aberration
+        // Chromatic aberration on both textures
         float aberration = 0.01 * normDist;
-        vec3 color;
-        color.r = texture(tex, sourceUV - aberration * normalize(delta)).r;
-        color.g = texture(tex, sourceUV).g;
-        color.b = texture(tex, sourceUV + aberration * normalize(delta)).b;
+        vec3 color1_distorted, color2_distorted;
+        
+        color1_distorted.r = texture(tex1, sourceUV - aberration * normalize(delta)).r;
+        color1_distorted.g = texture(tex1, sourceUV).g;
+        color1_distorted.b = texture(tex1, sourceUV + aberration * normalize(delta)).b;
+        
+        color2_distorted.r = texture(tex2, sourceUV - aberration * normalize(delta)).r;
+        color2_distorted.g = texture(tex2, sourceUV).g;
+        color2_distorted.b = texture(tex2, sourceUV + aberration * normalize(delta)).b;
+        
+        vec3 color = mix(color1_distorted, color2_distorted, crossfade);
         
         // Specular highlight
         vec2 highlightPos = center + vec2(-0.3, -0.3) * radius;
@@ -58,7 +72,7 @@ void main() {
         
         fragColor = vec4(color, 1.0);
     } else {
-        fragColor = texture(tex, uv);
+        fragColor = vec4(baseColor, 1.0);
     }
 }
 """
@@ -77,7 +91,6 @@ void main() {
 
 def load_texture_from_image(img, screen_width, screen_height):
     """Convert PIL image to OpenGL texture, scaled to screen"""
-    # Scale image to screen size while maintaining aspect ratio
     img_ratio = img.width / img.height
     screen_ratio = screen_width / screen_height
     
@@ -135,13 +148,17 @@ def create_fullscreen_quad():
 def main():
     pygame.init()
     
-    # FULLSCREEN
+    # FULLSCREEN with VSYNC for smooth display
     display_info = pygame.display.Info()
     screen_width = display_info.current_w
     screen_height = display_info.current_h
     
+    # Enable VSYNC (swap_control)
+    pygame.display.gl_set_attribute(pygame.GL_SWAP_CONTROL, 1)
+    
     pygame.display.set_mode((screen_width, screen_height), 
                            DOUBLEBUF | OPENGL | FULLSCREEN)
+    pygame.display.set_caption("DEMOSCENE CRYSTAL BALL")
     
     # Compile shaders
     shader = compileProgram(
@@ -156,28 +173,40 @@ def main():
     print(f"Found {len(photo_paths)} photos!")
     
     if not photo_paths:
-        print("No photos found! Using fallback.")
+        print("No photos found!")
         return
     
-    # Load first photo
+    # Load first two photos for cross-fade
     current_photo_idx = 0
+    next_photo_idx = 1
+    
     current_img = Image.open(photo_paths[current_photo_idx]).convert('RGB')
-    current_texture = load_texture_from_image(current_img, screen_width, screen_height)
+    next_img = Image.open(photo_paths[next_photo_idx]).convert('RGB')
+    
+    texture1 = load_texture_from_image(current_img, screen_width, screen_height)
+    texture2 = load_texture_from_image(next_img, screen_width, screen_height)
     
     quad_vao = create_fullscreen_quad()
     glUseProgram(shader)
     
     # Get uniform locations
+    loc_tex1 = glGetUniformLocation(shader, "tex1")
+    loc_tex2 = glGetUniformLocation(shader, "tex2")
+    loc_crossfade = glGetUniformLocation(shader, "crossfade")
     loc_sphere_center = glGetUniformLocation(shader, "sphereCenter")
     loc_sphere_radius = glGetUniformLocation(shader, "sphereRadius")
     loc_strength = glGetUniformLocation(shader, "strength")
     loc_resolution = glGetUniformLocation(shader, "resolution")
     
     glUniform2f(loc_resolution, screen_width, screen_height)
+    glUniform1i(loc_tex1, 0)  # Texture unit 0
+    glUniform1i(loc_tex2, 1)  # Texture unit 1
     
     clock = pygame.time.Clock()
     start_time = time.time()
     photo_change_time = start_time
+    crossfade_start = start_time
+    crossfade_duration = 2.0  # 2 second cross-fade
     running = True
     paused = False
     frame_count = 0
@@ -187,7 +216,7 @@ def main():
     print("  ESC = Exit")
     print("  SPACE = Pause motion")
     print("  LEFT/RIGHT = Change photo manually")
-    print("  Photo auto-changes every 3 seconds")
+    print("  Photos auto-change with smooth cross-fade every 15 seconds")
     
     while running:
         for event in pygame.event.get():
@@ -198,55 +227,80 @@ def main():
                     running = False
                 elif event.key == K_SPACE:
                     paused = not paused
-                    print(f"Motion {'PAUSED' if paused else 'RESUMED'}")
-                elif event.key == K_RIGHT:
-                    current_photo_idx = (current_photo_idx + 1) % len(photo_paths)
-                    print(f"Loading: {os.path.basename(photo_paths[current_photo_idx])}")
-                    current_img = Image.open(photo_paths[current_photo_idx]).convert('RGB')
-                    glDeleteTextures([current_texture])
-                    current_texture = load_texture_from_image(current_img, screen_width, screen_height)
-                    photo_change_time = time.time()
-                elif event.key == K_LEFT:
-                    current_photo_idx = (current_photo_idx - 1) % len(photo_paths)
-                    print(f"Loading: {os.path.basename(photo_paths[current_photo_idx])}")
-                    current_img = Image.open(photo_paths[current_photo_idx]).convert('RGB')
-                    glDeleteTextures([current_texture])
-                    current_texture = load_texture_from_image(current_img, screen_width, screen_height)
+                elif event.key == K_RIGHT or event.key == K_LEFT:
+                    # Manual photo change with cross-fade
+                    if event.key == K_RIGHT:
+                        next_photo_idx = (current_photo_idx + 1) % len(photo_paths)
+                    else:
+                        next_photo_idx = (current_photo_idx - 1) % len(photo_paths)
+                    
+                    print(f"Loading: {os.path.basename(photo_paths[next_photo_idx])}")
+                    next_img = Image.open(photo_paths[next_photo_idx]).convert('RGB')
+                    glDeleteTextures([texture2])
+                    texture2 = load_texture_from_image(next_img, screen_width, screen_height)
+                    crossfade_start = time.time()
                     photo_change_time = time.time()
         
-        # Auto-change photo every 3 seconds (FAST!)
-        if time.time() - photo_change_time > 3.0:
-            current_photo_idx = (current_photo_idx + 1) % len(photo_paths)
-            print(f"Auto-loading: {os.path.basename(photo_paths[current_photo_idx])}")
-            current_img = Image.open(photo_paths[current_photo_idx]).convert('RGB')
-            glDeleteTextures([current_texture])
-            current_texture = load_texture_from_image(current_img, screen_width, screen_height)
-            photo_change_time = time.time()
+        current_time = time.time()
+        t = current_time - start_time if not paused else 0
         
-        t = time.time() - start_time if not paused else 0
+        # Auto-change photo with cross-fade every 15 seconds
+        if current_time - photo_change_time > 15.0:
+            next_photo_idx = (current_photo_idx + 1) % len(photo_paths)
+            print(f"Cross-fading to: {os.path.basename(photo_paths[next_photo_idx])}")
+            next_img = Image.open(photo_paths[next_photo_idx]).convert('RGB')
+            glDeleteTextures([texture2])
+            texture2 = load_texture_from_image(next_img, screen_width, screen_height)
+            crossfade_start = current_time
+            photo_change_time = current_time
         
-        # CLASSIC DEMOSCENE SINE WAVE MOTION
-        center_x = screen_width/2 + math.sin(t * 1.3) * (screen_width * 0.3)
-        center_x += math.cos(t * 0.8) * (screen_width * 0.15)
+        # Calculate cross-fade amount (0.0 = texture1, 1.0 = texture2)
+        crossfade_progress = min(1.0, (current_time - crossfade_start) / crossfade_duration)
         
-        center_y = screen_height/2 + math.cos(t * 1.6) * (screen_height * 0.25)
-        center_y += math.sin(t * 1.1) * (screen_height * 0.12)
+        # When cross-fade complete, swap textures
+        if crossfade_progress >= 1.0 and current_photo_idx != next_photo_idx:
+            glDeleteTextures([texture1])
+            texture1 = texture2
+            current_photo_idx = next_photo_idx
+            # Pre-load next photo
+            next_photo_idx = (current_photo_idx + 1) % len(photo_paths)
+            next_img = Image.open(photo_paths[next_photo_idx]).convert('RGB')
+            texture2 = load_texture_from_image(next_img, screen_width, screen_height)
+            crossfade_progress = 0.0
         
-        # Pulsing radius
-        base_radius = min(screen_width, screen_height) * 0.2
-        radius = base_radius + math.sin(t * 4) * (base_radius * 0.15)
+        # IMPROVED DEMOSCENE MOTION - More complex Lissajous with rotation
+        # Multiple sine waves with different frequencies and phases
+        center_x = screen_width/2 + math.sin(t * 0.8) * (screen_width * 0.3)
+        center_x += math.cos(t * 1.3) * (screen_width * 0.15)
+        center_x += math.sin(t * 2.1) * (screen_width * 0.05)  # Extra detail
         
-        # Varying distortion strength
-        strength = 2.5 + math.sin(t * 2) * 0.5
+        center_y = screen_height/2 + math.cos(t * 1.2) * (screen_height * 0.25)
+        center_y += math.sin(t * 0.9) * (screen_height * 0.12)
+        center_y += math.cos(t * 1.7) * (screen_height * 0.08)  # Extra detail
         
-        # Update uniforms
+        # Pulsing radius with multiple frequencies
+        base_radius = min(screen_width, screen_height) * 0.18
+        radius = base_radius + math.sin(t * 3.2) * (base_radius * 0.12)
+        radius += math.cos(t * 5.1) * (base_radius * 0.05)  # Extra pulse
+        
+        # Varying distortion strength (breathing effect)
+        strength = 2.3 + math.sin(t * 1.8) * 0.4
+        strength += math.cos(t * 3.5) * 0.2  # Extra variation
+        
+        # Update shader uniforms
+        glUniform1f(loc_crossfade, crossfade_progress)
         glUniform2f(loc_sphere_center, center_x, center_y)
         glUniform1f(loc_sphere_radius, radius)
         glUniform1f(loc_strength, strength)
         
-        # Render
+        # Render with both textures
         glClear(GL_COLOR_BUFFER_BIT)
-        glBindTexture(GL_TEXTURE_2D, current_texture)
+        
+        glActiveTexture(GL_TEXTURE0)
+        glBindTexture(GL_TEXTURE_2D, texture1)
+        glActiveTexture(GL_TEXTURE1)
+        glBindTexture(GL_TEXTURE_2D, texture2)
+        
         glBindVertexArray(quad_vao)
         glDrawArrays(GL_TRIANGLES, 0, 6)
         
@@ -258,11 +312,12 @@ def main():
             fps = frame_count / (time.time() - start_time)
             photo_name = os.path.basename(photo_paths[current_photo_idx])
             pause_text = " [PAUSED]" if paused else ""
+            fade_pct = int(crossfade_progress * 100)
             pygame.display.set_caption(
-                f"DEMOSCENE SHADER - {fps:.0f} FPS - {photo_name}{pause_text} - ESC=Exit SPACE=Pause ARROWS=Change"
+                f"DEMOSCENE - {fps:.0f} FPS - {photo_name} (fade:{fade_pct}%){pause_text}"
             )
         
-        clock.tick(120)
+        clock.tick(60)  # 60 FPS with VSYNC
     
     pygame.quit()
     print("Demo closed.")

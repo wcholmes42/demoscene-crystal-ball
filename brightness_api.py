@@ -97,30 +97,44 @@ def run_demo_with_brightness():
     stop_brightness = threading.Event()
     
     def brightness_worker():
-        """Background thread for FAST CONTINUOUS brightness cycling"""
+        """Background thread for FAST CONTINUOUS brightness cycling with DEBUG"""
+        print("[BRIGHTNESS] *** Worker thread STARTED ***")
         try:
+            cycle = 0
             while not stop_brightness.is_set():
+                cycle += 1
+                print(f"\n[BRIGHTNESS] === CYCLE {cycle} === Dimming to BLACK...")
+                
                 # PHASE 1: Fast fade to BLACK (0%)
                 for current in range(100, -1, -1):
                     if stop_brightness.is_set():
                         break
-                    controller.set_brightness(current)
-                    time.sleep(0.05)  # 50ms per step = 5 second fade (FAST!)
+                    result = controller.set_brightness(current)
+                    if current % 20 == 0:  # Debug every 20%
+                        actual = controller.get_brightness()
+                        print(f"[BRIGHTNESS] Set:{current}% Actual:{actual}% OK:{result}")
+                    time.sleep(0.05)  # 50ms per step = 5 second fade
                 
-                # Ensure we hit absolute BLACK
                 controller.set_brightness(0)
+                print(f"[BRIGHTNESS] === DARKEST === 0%")
                 
                 if stop_brightness.is_set():
                     break
+                
+                print(f"[BRIGHTNESS] === CYCLE {cycle} === Brightening from BLACK...")
                 
                 # PHASE 2: Fast fade from black to bright
                 for current in range(0, 101):
                     if stop_brightness.is_set():
                         break
-                    controller.set_brightness(current)
-                    time.sleep(0.05)  # 50ms per step = 5 second fade (FAST!)
+                    result = controller.set_brightness(current)
+                    if current % 20 == 0:  # Debug every 20%
+                        actual = controller.get_brightness()
+                        print(f"[BRIGHTNESS] Set:{current}% Actual:{actual}% OK:{result}")
+                    time.sleep(0.05)  # 50ms per step = 5 second fade
                 
-                # Loop immediately, no pause
+                print(f"[BRIGHTNESS] === BRIGHTEST === 100%")
+                # Loop immediately
                 
         except Exception as e:
             print(f"[BRIGHTNESS] Error: {e}")
