@@ -47,44 +47,38 @@ class BrightnessController:
 
 def brightness_cycle_test():
     """
-    Brightness test: SMOOTH decrease to 0%, then SMOOTH increase back
-    Uses small steps for animated transitions
+    Brightness test: CONTINUOUS smooth fade 100% → 0% → 100% repeating
     """
     controller = BrightnessController()
     
     print("\n" + "="*60)
-    print("BRIGHTNESS CYCLE TEST - SMOOTH ANIMATIONS")
+    print("BRIGHTNESS CYCLE TEST - CONTINUOUS SMOOTH FADING")
     print("="*60)
-    print("Will smoothly dim to 0% then brighten back to 100%")
+    print("Continuously fading 100% → 0% → 100% with no pauses")
+    print("Press CTRL+C to stop")
     print("="*60 + "\n")
     
     try:
-        # PHASE 1: Smooth decrease to 0%
-        print("[PHASE 1] DIMMING (smooth animation)...")
-        current = 100
-        while current > 0:
-            controller.set_brightness(current)
-            print(f"[BRIGHTNESS] {current}%", end="\r")
-            time.sleep(0.1)  # 100ms per 1% = smooth 10 second fade
-            current -= 1
-        
-        controller.set_brightness(0)
-        print(f"[BRIGHTNESS] 0% (DARKEST)                    ")
-        time.sleep(2)  # Hold at darkest
-        
-        # PHASE 2: Smooth increase to 100%
-        print("\n[PHASE 2] BRIGHTENING (smooth animation)...")
-        current = 0
-        while current < 100:
-            controller.set_brightness(current)
-            print(f"[BRIGHTNESS] {current}%", end="\r")
-            time.sleep(0.1)  # 100ms per 1% = smooth 10 second fade
-            current += 1
-        
-        controller.set_brightness(100)
-        print(f"[BRIGHTNESS] 100% (BRIGHTEST)                ")
-        
-        print("\n[COMPLETE] Smooth brightness cycle complete!")
+        cycle_count = 0
+        while True:
+            cycle_count += 1
+            print(f"\n[CYCLE {cycle_count}] Dimming 100% → 0%...")
+            
+            # Dim from 100 to 0
+            for current in range(100, -1, -1):
+                controller.set_brightness(current)
+                print(f"[BRIGHTNESS] {current}%", end="\r")
+                time.sleep(0.1)
+            
+            print(f"\n[CYCLE {cycle_count}] Brightening 0% → 100%...")
+            
+            # Brighten from 0 to 100
+            for current in range(0, 101):
+                controller.set_brightness(current)
+                print(f"[BRIGHTNESS] {current}%", end="\r")
+                time.sleep(0.1)
+            
+            print()  # New line after cycle
         
     except KeyboardInterrupt:
         print("\n[INTERRUPTED] Stopping brightness cycle...")
@@ -99,32 +93,27 @@ def run_demo_with_brightness():
     stop_brightness = threading.Event()
     
     def brightness_worker():
-        """Background thread for smooth brightness cycling"""
+        """Background thread for CONTINUOUS smooth brightness cycling"""
         try:
             while not stop_brightness.is_set():
-                # PHASE 1: Smooth dim to 0%
-                current = 100
-                while current > 0 and not stop_brightness.is_set():
+                # PHASE 1: Smooth dim from 100% to 0%
+                for current in range(100, -1, -1):
+                    if stop_brightness.is_set():
+                        break
                     controller.set_brightness(current)
-                    time.sleep(0.1)  # Smooth animation
-                    current -= 1
+                    time.sleep(0.1)  # 100ms per step = 10 second fade
                 
                 if stop_brightness.is_set():
                     break
-                    
-                time.sleep(2)  # Hold at darkest
                 
-                # PHASE 2: Smooth brighten to 100%
-                current = 0
-                while current < 100 and not stop_brightness.is_set():
+                # PHASE 2: Smooth brighten from 0% to 100%
+                for current in range(0, 101):
+                    if stop_brightness.is_set():
+                        break
                     controller.set_brightness(current)
-                    time.sleep(0.1)  # Smooth animation
-                    current += 1
+                    time.sleep(0.1)  # 100ms per step = 10 second fade
                 
-                if stop_brightness.is_set():
-                    break
-                    
-                time.sleep(2)  # Hold at brightest before repeating
+                # Loop immediately, no pause
                 
         except Exception as e:
             print(f"[BRIGHTNESS] Error: {e}")
