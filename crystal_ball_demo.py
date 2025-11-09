@@ -2,7 +2,7 @@ import pygame
 from pygame.locals import *
 from OpenGL.GL import *
 from OpenGL.GL.shaders import compileProgram, compileShader
-from PIL import Image
+from PIL import Image, ImageOps
 import numpy as np
 import math
 import time
@@ -107,7 +107,10 @@ void main() {
 """
 
 def load_texture_from_image(img, screen_width, screen_height):
-    """Convert PIL image to OpenGL texture, scaled to screen"""
+    """Convert PIL image to OpenGL texture, scaled to screen with proper orientation"""
+    # CRITICAL: Apply EXIF orientation to fix upside-down/rotated photos
+    img = ImageOps.exif_transpose(img)
+    
     img_ratio = img.width / img.height
     screen_ratio = screen_width / screen_height
     
@@ -290,13 +293,19 @@ def main():
         # Calculate cross-fade amount (0.0 = texture1, 1.0 = texture2)
         crossfade_progress = min(1.0, (current_time - crossfade_start) / crossfade_duration)
         
-        # When cross-fade complete, swap textures (ONCE!)
+        # When cross-fade complete, swap textures and PRE-LOAD next
         if crossfade_progress >= 1.0 and current_photo_idx != next_photo_idx:
             print(f"[CROSSFADE COMPLETE] Swapping to photo #{next_photo_idx + 1}")
             glDeleteTextures([texture1])
             texture1 = texture2
             current_photo_idx = next_photo_idx
-            # DON'T pre-load here - wait for 30 second timer
+            
+            # PRE-LOAD next photo into texture2 so OLD and NEW are always ready
+            next_photo_idx = (current_photo_idx + 1) % len(photo_paths)
+            print(f"[PRE-LOAD] Loading photo #{next_photo_idx + 1} for next transition")
+            next_img = Image.open(photo_paths[next_photo_idx]).convert('RGB')
+            texture2 = load_texture_from_image(next_img, screen_width, screen_height)
+            
             # Reset crossfade to prevent re-triggering
             crossfade_start = current_time - crossfade_duration  # Keep at 1.0
         
