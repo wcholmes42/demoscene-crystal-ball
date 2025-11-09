@@ -148,6 +148,9 @@ def create_fullscreen_quad():
 def main():
     pygame.init()
     
+    # Initialize font for on-screen text
+    pygame.font.init()
+    
     # FULLSCREEN with VSYNC for smooth display
     display_info = pygame.display.Info()
     screen_width = display_info.current_w
@@ -245,10 +248,19 @@ def main():
         current_time = time.time()
         t = current_time - start_time if not paused else 0
         
+        # Show countdown every 5 seconds
+        time_on_photo = current_time - photo_change_time
+        if int(time_on_photo) % 5 == 0 and int(time_on_photo * 10) % 50 == 0:  # Once per 5 sec
+            remaining = int(photo_display_time - time_on_photo)
+            print(f"[Photo #{current_photo_idx + 1}] {remaining}s until next photo...")
+        
         # Auto-change photo with cross-fade every 30 seconds
         if current_time - photo_change_time > photo_display_time:
             next_photo_idx = (current_photo_idx + 1) % len(photo_paths)
+            print("\n" + "="*60)
+            print(f"[{int(current_time - start_time)}s] PHOTO CHANGE #{next_photo_idx + 1}/{len(photo_paths)}")
             print(f"Cross-fading to: {os.path.basename(photo_paths[next_photo_idx])}")
+            print("="*60 + "\n")
             next_img = Image.open(photo_paths[next_photo_idx]).convert('RGB')
             glDeleteTextures([texture2])
             texture2 = load_texture_from_image(next_img, screen_width, screen_height)
