@@ -17,6 +17,7 @@ Built with raw OpenGL fragment shaders, not some hand-wavy filter library. Real 
 - **Manual Controls**: Arrow keys to browse, space to pause
 - **Pulsing Effects**: Radius and distortion strength modulate over time
 - **Fullscreen Glory**: Proper demoscene presentation
+- **Live Brightness Control**: Screen dims/brightens during demo for dramatic effect (NEW in v1.1.0)
 
 ## The Physics
 
@@ -30,13 +31,27 @@ The shader implements real spherical lens optics:
 ## Requirements
 
 ```bash
-pip install pygame PyOpenGL PyOpenGL_accelerate Pillow numpy
+pip install pygame PyOpenGL PyOpenGL_accelerate Pillow numpy screen-brightness-control
 ```
 
 ## Usage
 
+**Basic Demo:**
 ```bash
 python crystal_ball_demo.py
+```
+
+**Demo with Brightness Control:**
+```bash
+python run_demo_test.py --full
+```
+This will launch the demo and automatically cycle screen brightness:
+- Dims from 100% → 0% (5% every 5 seconds)
+- Then brightens from 0% → 100% (5% every 5 seconds)
+
+**Test Brightness Only:**
+```bash
+python run_demo_test.py --test
 ```
 
 **Controls:**
