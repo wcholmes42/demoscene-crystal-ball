@@ -206,7 +206,8 @@ def main():
     start_time = time.time()
     photo_change_time = start_time
     crossfade_start = start_time
-    crossfade_duration = 2.0  # 2 second cross-fade
+    crossfade_duration = 3.0  # 3 SECOND cross-fade
+    photo_display_time = 30.0  # 30 SECONDS per photo
     running = True
     paused = False
     frame_count = 0
@@ -216,7 +217,7 @@ def main():
     print("  ESC = Exit")
     print("  SPACE = Pause motion")
     print("  LEFT/RIGHT = Change photo manually")
-    print("  Photos auto-change with smooth cross-fade every 15 seconds")
+    print("  Photos display for 30 seconds with 3-second smooth cross-fade")
     
     while running:
         for event in pygame.event.get():
@@ -244,8 +245,8 @@ def main():
         current_time = time.time()
         t = current_time - start_time if not paused else 0
         
-        # Auto-change photo with cross-fade every 15 seconds
-        if current_time - photo_change_time > 15.0:
+        # Auto-change photo with cross-fade every 30 seconds
+        if current_time - photo_change_time > photo_display_time:
             next_photo_idx = (current_photo_idx + 1) % len(photo_paths)
             print(f"Cross-fading to: {os.path.basename(photo_paths[next_photo_idx])}")
             next_img = Image.open(photo_paths[next_photo_idx]).convert('RGB')
@@ -306,15 +307,17 @@ def main():
         
         pygame.display.flip()
         
-        # FPS counter
+        # FPS counter with timing info
         frame_count += 1
         if frame_count % 60 == 0:
             fps = frame_count / (time.time() - start_time)
             photo_name = os.path.basename(photo_paths[current_photo_idx])
             pause_text = " [PAUSED]" if paused else ""
             fade_pct = int(crossfade_progress * 100)
+            time_on_photo = int(current_time - photo_change_time)
+            time_remaining = int(photo_display_time - (current_time - photo_change_time))
             pygame.display.set_caption(
-                f"DEMOSCENE - {fps:.0f} FPS - {photo_name} (fade:{fade_pct}%){pause_text}"
+                f"DEMOSCENE - {fps:.0f} FPS - {photo_name} ({time_remaining}s left, fade:{fade_pct}%){pause_text}"
             )
         
         clock.tick(60)  # 60 FPS with VSYNC

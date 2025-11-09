@@ -147,7 +147,7 @@ def run_demo_with_brightness():
     print("="*60)
     print("Starting demo with FAST brightness cycling...")
     print("Fades to absolute BLACK and back every 10 seconds")
-    print("Photos change every 3 seconds")
+    print("Photos display for 30 seconds with 3-second cross-fade")
     print("Press ESC in demo window to exit")
     print("="*60 + "\n")
     
