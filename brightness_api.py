@@ -47,33 +47,44 @@ class BrightnessController:
 
 def brightness_cycle_test():
     """
-    Brightness test: Decrease 5% every 5 seconds to 0%, then increase back
+    Brightness test: SMOOTH decrease to 0%, then SMOOTH increase back
+    Uses small steps for animated transitions
     """
     controller = BrightnessController()
     
     print("\n" + "="*60)
-    print("BRIGHTNESS CYCLE TEST")
+    print("BRIGHTNESS CYCLE TEST - SMOOTH ANIMATIONS")
     print("="*60)
-    print("Will decrease brightness 5% every 5 seconds until 0%")
-    print("Then increase 5% every 5 seconds back to 100%")
+    print("Will smoothly dim to 0% then brighten back to 100%")
     print("="*60 + "\n")
     
     try:
-        # PHASE 1: Decrease to 0%
-        print("[PHASE 1] DIMMING...")
-        for brightness in range(100, -5, -5):  # 100, 95, 90, ..., 5, 0
-            controller.set_brightness(brightness)
-            print(f"[BRIGHTNESS] Set to {brightness}%")
-            time.sleep(5)
+        # PHASE 1: Smooth decrease to 0%
+        print("[PHASE 1] DIMMING (smooth animation)...")
+        current = 100
+        while current > 0:
+            controller.set_brightness(current)
+            print(f"[BRIGHTNESS] {current}%", end="\r")
+            time.sleep(0.1)  # 100ms per 1% = smooth 10 second fade
+            current -= 1
         
-        # PHASE 2: Increase to 100%
-        print("\n[PHASE 2] BRIGHTENING...")
-        for brightness in range(5, 105, 5):  # 5, 10, 15, ..., 95, 100
-            controller.set_brightness(brightness)
-            print(f"[BRIGHTNESS] Set to {brightness}%")
-            time.sleep(5)
+        controller.set_brightness(0)
+        print(f"[BRIGHTNESS] 0% (DARKEST)                    ")
+        time.sleep(2)  # Hold at darkest
         
-        print("\n[COMPLETE] Brightness cycle complete!")
+        # PHASE 2: Smooth increase to 100%
+        print("\n[PHASE 2] BRIGHTENING (smooth animation)...")
+        current = 0
+        while current < 100:
+            controller.set_brightness(current)
+            print(f"[BRIGHTNESS] {current}%", end="\r")
+            time.sleep(0.1)  # 100ms per 1% = smooth 10 second fade
+            current += 1
+        
+        controller.set_brightness(100)
+        print(f"[BRIGHTNESS] 100% (BRIGHTEST)                ")
+        
+        print("\n[COMPLETE] Smooth brightness cycle complete!")
         
     except KeyboardInterrupt:
         print("\n[INTERRUPTED] Stopping brightness cycle...")
@@ -82,17 +93,56 @@ def brightness_cycle_test():
 
 def run_demo_with_brightness():
     """
-    Launch the crystal ball demo and run brightness cycle in background
+    Launch the crystal ball demo and run SMOOTH brightness cycle in background thread
     """
     controller = BrightnessController()
+    stop_brightness = threading.Event()
+    
+    def brightness_worker():
+        """Background thread for smooth brightness cycling"""
+        try:
+            while not stop_brightness.is_set():
+                # PHASE 1: Smooth dim to 0%
+                current = 100
+                while current > 0 and not stop_brightness.is_set():
+                    controller.set_brightness(current)
+                    time.sleep(0.1)  # Smooth animation
+                    current -= 1
+                
+                if stop_brightness.is_set():
+                    break
+                    
+                time.sleep(2)  # Hold at darkest
+                
+                # PHASE 2: Smooth brighten to 100%
+                current = 0
+                while current < 100 and not stop_brightness.is_set():
+                    controller.set_brightness(current)
+                    time.sleep(0.1)  # Smooth animation
+                    current += 1
+                
+                if stop_brightness.is_set():
+                    break
+                    
+                time.sleep(2)  # Hold at brightest before repeating
+                
+        except Exception as e:
+            print(f"[BRIGHTNESS] Error: {e}")
+        finally:
+            print("[BRIGHTNESS] Thread stopping, restoring brightness...")
+            controller.restore()
     
     print("\n" + "="*60)
-    print("DEMOSCENE CRYSTAL BALL + BRIGHTNESS CONTROL")
+    print("DEMOSCENE CRYSTAL BALL + SMOOTH BRIGHTNESS CONTROL")
     print("="*60)
-    print("Starting demo with live brightness control...")
-    print("Demo will run while brightness cycles")
-    print("Press CTRL+C to stop both")
+    print("Starting demo with smooth brightness cycling...")
+    print("Press ESC in demo window to exit")
     print("="*60 + "\n")
+    
+    # Start brightness thread
+    brightness_thread = threading.Thread(target=brightness_worker, daemon=True)
+    brightness_thread.start()
+    print("[BRIGHTNESS] Smooth animation thread started")
     
     # Start demo in subprocess
     demo_process = subprocess.Popen(
@@ -100,26 +150,34 @@ def run_demo_with_brightness():
         cwd="C:\\code\\demoscene-crystal-ball"
     )
     
-    print("[DEMO] Started with PID:", demo_process.pid)
-    time.sleep(3)  # Give demo time to initialize
+    print(f"[DEMO] Started with PID: {demo_process.pid}")
     
     try:
-        # Run brightness cycle in this thread
-        brightness_cycle_test()
+        # Wait for demo to finish
+        demo_process.wait()
         
     except KeyboardInterrupt:
         print("\n[INTERRUPTED] Stopping...")
-    finally:
-        # Cleanup
-        print("[CLEANUP] Terminating demo...")
         demo_process.terminate()
-        try:
-            demo_process.wait(timeout=5)
-        except subprocess.TimeoutExpired:
-            demo_process.kill()
         
+    finally:
+        # CRITICAL: Stop brightness thread and restore
+        print("[CLEANUP] Stopping brightness control...")
+        stop_brightness.set()
+        brightness_thread.join(timeout=2)
+        
+        # Ensure demo is dead
+        if demo_process.poll() is None:
+            print("[CLEANUP] Terminating demo...")
+            demo_process.terminate()
+            try:
+                demo_process.wait(timeout=3)
+            except subprocess.TimeoutExpired:
+                demo_process.kill()
+        
+        # Final restore
         controller.restore()
-        print("[COMPLETE] Demo and brightness control stopped.")
+        print("[COMPLETE] Demo and brightness control stopped. Brightness restored.")
 
 if __name__ == "__main__":
     import argparse
